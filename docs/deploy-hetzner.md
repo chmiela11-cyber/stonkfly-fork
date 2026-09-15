@@ -107,6 +107,36 @@ The totals line splits the equity change into booked fees and market movement,
 which is usually the fastest way to see whether a losing run lost to the market
 or to its own trading costs.
 
+## Reading the result
+
+An equity number on its own says nothing: over a short window it is mostly fees,
+and over any window it says nothing without something to compare against.
+`deploy/report.sh` puts the run next to three baselines computed from its own
+recorded prices.
+
+```sh
+bash deploy/report.sh                      # the active run
+bash deploy/report.sh tuned tuned-d2ae9fe  # compare run directories
+```
+
+- **no trading** is cash left alone, always zero, the thing a losing run failed
+  to beat.
+- **buy and hold** commits the whole starting balance at the first ask and marks
+  it at the last bid, paying one entry fee. It shows what the period offered.
+- **passive at same size** applies the price move to the average position the
+  run actually carried. This is the like-for-like comparison, because the run
+  holds a fraction of the balance and a full-exposure benchmark is not the same
+  bet.
+
+**timing** is the run's market P&L minus that passive baseline: what entering and
+exiting when it did added over simply holding the same average size. It is the
+only line that reflects the decisions rather than the exposure, and it is the
+one to watch.
+
+Comparing the live run against a `--frozen` control is the same command with two
+directories. Without that control, a difference between runs is not evidence of
+learning.
+
 A run directory holds the SQLite ledger, `events.jsonl` with one JSON object per
 observation, two alternating brain checkpoints, `latest-input.png` showing what
 the retina was given, and `provenance.json` with the exact code, graph and

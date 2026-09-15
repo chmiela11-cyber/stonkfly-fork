@@ -14,7 +14,11 @@ WorkingDirectory=/var/repositories/stonkfly-fork
 Environment=STONKFLY_DATA=/opt/stonkfly/data
 Environment=OPENBLAS_NUM_THREADS=1
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/opt/stonkfly/venv/bin/python -m stonkfly run --products BTC-USDC --out /opt/stonkfly/runs/paper
+# Changing settings or tracked source changes the run's provenance hash, and an
+# existing run directory then refuses to resume. Override this with a drop-in
+# (systemctl edit stonkfly-paper) to start a fresh measurement.
+Environment=STONKFLY_RUN=paper
+ExecStart=/opt/stonkfly/venv/bin/python -m stonkfly run --products BTC-USDC --out /opt/stonkfly/runs/${STONKFLY_RUN}
 
 # A halted ledger exits 0 and stays down for review; only crashes restart.
 Restart=on-failure

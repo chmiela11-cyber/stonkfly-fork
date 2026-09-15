@@ -40,7 +40,7 @@ class Guard:
         self.check(quotes, now)
         if product not in self.s.products or side not in ("BUY", "SELL"):
             raise Veto("Invalid neural proposal")
-        if now - self.l.get("last_attempt") < self.s.interval_seconds:
+        if now - self.l.get("last_attempt") < self.s.cooldown_seconds:
             raise Veto("Order cooldown")
         if self.l.attempts_today(now) >= self.s.daily_orders:
             raise Veto("Daily order limit")

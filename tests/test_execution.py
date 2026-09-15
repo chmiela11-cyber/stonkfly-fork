@@ -52,7 +52,11 @@ def test_nonfinite_money(value):
         dict(order_limit="11"),
         dict(neural_bin_ms=0.01),
         dict(reward_deadband="0"),
+        dict(reward_deadband="0.2"),
         dict(interval_seconds=float("nan")),
+        dict(interval_seconds=60),
+        dict(cooldown_seconds=59),
+        dict(interval_margin_seconds=-1),
         dict(daily_orders=1.5),
     ],
 )
@@ -114,6 +118,38 @@ def test_agentkit_paper_accounting_and_cooldown(env):
         a.invoke({"product": "BTC-USDC", "side": "BUY"})
     with pytest.raises(ValidationError):
         a.invoke({"product": "BTC-USDC", "side": "BUY", "size": 99})
+
+
+def test_observation_interval_clears_the_cooldown(env):
+    s, l, g = env
+    # An attempt lands after a variable neural integration, so consecutive
+    # attempts are interval + jitter apart. The worst case is the current
+    # integration finishing a full margin sooner than the previous one.
+    attempt = time.time()
+    l.put("last_attempt", attempt)
+    earliest = attempt + s.interval_seconds - s.interval_margin_seconds
+    assert earliest - attempt >= s.cooldown_seconds
+    g.plan("BTC-USDC", "BUY", {"BTC-USDC": quote(timestamp=earliest)}, now=earliest)
+
+
+def test_cooldown_rejects_a_closer_attempt(env):
+    s, l, g = env
+    attempt = time.time()
+    l.put("last_attempt", attempt)
+    soon = attempt + s.cooldown_seconds - 1
+    with pytest.raises(Veto, match="cooldown"):
+        g.plan("BTC-USDC", "BUY", {"BTC-USDC": quote(timestamp=soon)}, now=soon)
+
+
+def test_a_fill_alone_does_not_stimulate(env):
+    s, l, g = env
+    provider = StonkflyActions(g, PaperBroker(s, l))
+    provider.quotes = {"BTC-USDC": quote()}
+    provider.get_actions()[0].invoke({"product": "BTC-USDC", "side": "BUY"})
+    # Unchanged quotes: equity moved by the booked fee and the spread only.
+    kind, delta = reinforcement(l.equity(provider.quotes), "100", s.reward_deadband)
+    assert delta < 0
+    assert kind == "none"
 
 
 def test_daily_attempt_limit(env):

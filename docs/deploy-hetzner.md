@@ -60,9 +60,19 @@ Useful overrides: `REPO_REF` (branch or tag), `APP` (checkout path), `PREFIX`
 `ADD_SWAP=yes|no`.
 
 To update later, pull and re-run the installer, then `systemctl restart
-stonkfly-paper`. Note that changing tracked source files changes the run's
-provenance hash: an existing run directory refuses to resume, by design. Use a
-fresh `--out` directory after a code change.
+stonkfly-paper`.
+
+Changing tracked source files or settings changes the run's provenance hash, and
+an existing run directory then refuses to resume, by design. Start a fresh
+measurement by pointing the unit at a new directory:
+
+```sh
+systemctl edit stonkfly-paper     # [Service] / Environment=STONKFLY_RUN=tuned
+systemctl restart stonkfly-paper
+```
+
+The previous directory is left intact for comparison. Do not delete a ledger to
+get past the refusal.
 
 ## Run
 

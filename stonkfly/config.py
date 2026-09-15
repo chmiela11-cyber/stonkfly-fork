@@ -32,13 +32,21 @@ class Settings:
     slippage: str = "0.005"
     spread_limit: str = "0.005"
     daily_orders: int = 24
-    interval_seconds: float = 60
+    # Observation cadence and the minimum spacing between order attempts are
+    # separate: an attempt happens after a variable neural integration, so a
+    # loop period equal to the cooldown vetoes a proposal whenever the current
+    # integration finishes sooner than the previous one.
+    interval_seconds: float = 65
+    cooldown_seconds: float = 60
+    interval_margin_seconds: float = 5
     max_quote_age: float = 15
     neural_ms: float = 500
     neural_bin_ms: float = 10
     pulse_ms: float = 200
     pulse_current: float = 20
-    reward_deadband: str = "0.01"
+    # Must exceed one order's maximum booked fee, so that executing a trade
+    # cannot by itself cross the threshold and stimulate an aversive pulse.
+    reward_deadband: str = "0.25"
     decoder_threshold_hz: float = 2
     paper_fee: str = "0.006"
     learning: bool = True
@@ -67,12 +75,25 @@ class Settings:
         if (
             type(self.daily_orders) is not int
             or not 1 <= self.daily_orders <= 100
-            or not math.isfinite(self.interval_seconds)
-            or self.interval_seconds < 60
+            or not math.isfinite(self.cooldown_seconds)
+            or self.cooldown_seconds < 60
         ):
             raise ValueError("Rate limit: >=60 s between orders, <=100 orders/day")
-        if D(self.reward_deadband) <= 0:
-            raise ValueError("Positive reinforcement deadband required")
+        if (
+            not math.isfinite(self.interval_margin_seconds)
+            or self.interval_margin_seconds < 0
+            or not math.isfinite(self.interval_seconds)
+            or self.interval_seconds
+            < self.cooldown_seconds + self.interval_margin_seconds
+        ):
+            raise ValueError(
+                "Observation interval must clear the cooldown by the configured margin"
+            )
+        # One order's fee is a deterministic cost, not evidence about direction.
+        if D(self.reward_deadband) <= D(self.order_limit) * D(self.fee_reserve):
+            raise ValueError(
+                "Reinforcement deadband must exceed one order's maximum booked fee"
+            )
         for x in [
             self.max_quote_age,
             self.neural_ms,

@@ -82,16 +82,36 @@ journalctl -u stonkfly-paper -f           # one JSON line per decision
 systemctl stop stonkfly-paper             # stop; state is preserved
 ```
 
-Progress and the simulated balance:
+## Watch it
+
+`deploy/inspect.sh` resolves the active run directory from the unit and reports
+on it. It only reads, so it is safe while the worker runs.
 
 ```sh
-sudo -u stonkfly /opt/stonkfly/venv/bin/python -m stonkfly status --out /opt/stonkfly/runs/paper
-cat /opt/stonkfly/runs/paper/latest.json
+bash deploy/inspect.sh              # balance, last observation, recent ticks, totals
+bash deploy/inspect.sh --tick 7     # one observation in full, as recorded
+bash deploy/inspect.sh --follow     # live log
+bash deploy/inspect.sh --run paper  # an earlier run directory
 ```
 
-`/opt/stonkfly/runs/paper/` holds the SQLite ledger, `events.jsonl`, two
-alternating brain checkpoints, the last sensory image, and provenance hashes.
-Restarting uses the same directory and resumes the neural state.
+The summary separates what the decoder saw from what the account did. `side`
+comes from the DNp20 right-minus-left rate, but a proposal only leaves the
+circuit when DNpe017 spikes: zero gate spikes forces HOLD whatever the rate
+difference is. `stimulus` reports the external dopamine pulse, while
+`aversive spikes` counts what those cells actually fired, which is nonzero
+without a pulse because the network drives them too. Under `memory`, an
+efficacy mean or minimum sitting at a 0.1 or 2.0 bound means the rule saturated
+rather than converged.
+
+The totals line splits the equity change into booked fees and market movement,
+which is usually the fastest way to see whether a losing run lost to the market
+or to its own trading costs.
+
+A run directory holds the SQLite ledger, `events.jsonl` with one JSON object per
+observation, two alternating brain checkpoints, `latest-input.png` showing what
+the retina was given, and `provenance.json` with the exact code, graph and
+parameter hashes. Restarting uses the same directory and resumes the neural
+state.
 
 Paper fills use observed bid/ask plus a 0.6% fee per side against a simulated
 $100 balance. They do not model depth, queue position or market impact, so the

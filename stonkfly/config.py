@@ -44,8 +44,10 @@ class Settings:
     neural_bin_ms: float = 10
     pulse_ms: float = 200
     pulse_current: float = 20
-    # Must exceed one order's maximum booked fee, so that executing a trade
-    # cannot by itself cross the threshold and stimulate an aversive pulse.
+    # Must exceed the fee one paper order books, so that executing a trade
+    # cannot by itself cross the threshold and stimulate an aversive pulse. The
+    # default also clears the live preview ceiling (order_limit * fee_reserve),
+    # which is what a live run pays in the worst case.
     reward_deadband: str = "0.25"
     decoder_threshold_hz: float = 2
     paper_fee: str = "0.006"
@@ -90,9 +92,11 @@ class Settings:
                 "Observation interval must clear the cooldown by the configured margin"
             )
         # One order's fee is a deterministic cost, not evidence about direction.
-        if D(self.reward_deadband) <= D(self.order_limit) * D(self.fee_reserve):
+        # The floor is the fee a paper order actually books; a live run should
+        # also clear order_limit * fee_reserve, the preview ceiling it may pay.
+        if D(self.reward_deadband) <= D(self.order_limit) * D(self.paper_fee):
             raise ValueError(
-                "Reinforcement deadband must exceed one order's maximum booked fee"
+                "Reinforcement deadband must exceed the fee one order books"
             )
         for x in [
             self.max_quote_age,

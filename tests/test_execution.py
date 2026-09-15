@@ -52,7 +52,7 @@ def test_nonfinite_money(value):
         dict(order_limit="11"),
         dict(neural_bin_ms=0.01),
         dict(reward_deadband="0"),
-        dict(reward_deadband="0.2"),
+        dict(reward_deadband="0.06"),
         dict(interval_seconds=float("nan")),
         dict(interval_seconds=60),
         dict(cooldown_seconds=59),

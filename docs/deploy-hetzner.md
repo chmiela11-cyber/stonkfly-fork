@@ -7,16 +7,22 @@ credentials, and cannot submit a real order.
 
 ## Server size
 
+The peak is the one-off `prepare` import, not the steady-state run. Size the
+server for the import and the worker takes care of itself.
+
 | Resource | Needed | Note |
 | --- | --- | --- |
-| RAM | 16 GB recommended, 8 GB + swap workable | `prepare` holds the full 25.6M-edge graph in memory |
-| Disk | 25 GB or more | ~1.1 GB download, derived arrays, dependencies, checkpoints |
+| RAM | 16 GB comfortable; 4 GB works with swap | Only `prepare` needs it; the running worker holds a few hundred MB |
+| Disk | 25 GB, plus 8 GB if the installer adds swap | ~1.1 GB download, derived arrays, dependencies, checkpoints |
 | CPU | 2 vCPU is enough | One decision per 60 s; the neural step is single-worker |
 | OS | Ubuntu 24.04 or Debian 12 | Python >= 3.11 and a C++17 compiler |
 
-A Hetzner **CX42** (8 vCPU / 16 GB / 160 GB) runs `prepare` comfortably. A
-**CX32** (4 vCPU / 8 GB) works once the installer adds swap; the import is
-slower. Anything below 8 GB is not worth attempting.
+A Hetzner **CX42** (8 vCPU / 16 GB / 160 GB) runs `prepare` without swap. A
+**CX22** (2 vCPU / 4 GB / 40 GB) has been observed to complete the import and
+run the paper worker, using the 8 GB swap file the installer adds below 12 GB
+of RAM; the import leans on that swap and is correspondingly slower. Small
+instances trade setup time for cost, not capability. Leave the swap in place:
+every later `prepare` needs it again.
 
 ## Install
 
@@ -94,7 +100,7 @@ cannot be cleared with `--resume-reviewed`.
 
 Live execution needs a dedicated Coinbase Advanced portfolio, a portfolio-scoped
 ECDSA key with View + Trade and no Transfer, a local `.env`, and the `--live`
-flag — steps you perform deliberately, per
+flag. These are steps you perform deliberately, per
 [operations.md](operations.md). Do not put a key on the server until a paper run
 has convinced you the worker behaves. If you do, keep `coinbase-key.json` at
 `chmod 600`, owned by the service user, and outside the repository checkout.

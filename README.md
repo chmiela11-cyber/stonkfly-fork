@@ -20,7 +20,7 @@ python -m stonkfly prepare
 python -m stonkfly run
 ```
 
-Default: **paper trades, real public BTC-USDC data, $100 simulated balance**. No key needed. Local logs, sensory images and resumable brain state go in `runs/paper/`. Ctrl-C stops it; the same command resumes.
+Default: **paper trades, real public BTC-USDC data, $100 simulated balance**. No key needed. To keep a paper run going on a small cloud server, use [`deploy/install.sh`](deploy/install.sh) ([Hetzner walkthrough](docs/deploy-hetzner.md)). Local logs, sensory images and resumable brain state go in `runs/paper/`. Ctrl-C stops it; the same command resumes.
 
 For real orders, first create a dedicated Coinbase Advanced portfolio with **at most 100 USDC** and a portfolio-scoped **ECDSA API key with View + Trade, no Transfer**. Copy `.env.example` to `.env`, fill it in locally, then run these commands yourself:
 

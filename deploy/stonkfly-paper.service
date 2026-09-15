@@ -1,0 +1,35 @@
+# Paper-mode worker. No credentials, no --live flag: this unit cannot place a
+# real order. See docs/operations.md before considering live execution.
+[Unit]
+Description=Stonkfly paper trading worker (fly-connectome experiment)
+Documentation=https://github.com/chmiela11-cyber/stonkfly-fork
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=stonkfly
+Group=stonkfly
+WorkingDirectory=/opt/stonkfly/app
+Environment=STONKFLY_DATA=/opt/stonkfly/data
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/stonkfly/venv/bin/python -m stonkfly run --products BTC-USDC --out /opt/stonkfly/runs/paper
+
+# A halted ledger exits 0 and stays down for review; only crashes restart.
+Restart=on-failure
+RestartSec=30s
+TimeoutStopSec=90s
+KillSignal=SIGINT
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+ReadWritePaths=/opt/stonkfly
+
+[Install]
+WantedBy=multi-user.target

@@ -5,17 +5,19 @@
 #
 #   sudo REPO_REF=main bash deploy/install.sh
 #
-# Overridable: REPO_URL, REPO_REF, PREFIX, SERVICE_USER, PRODUCTS, ADD_SWAP.
+# Overridable: REPO_URL, REPO_REF, APP, PREFIX, SERVICE_USER, PRODUCTS, ADD_SWAP.
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/chmiela11-cyber/stonkfly-fork}"
 REPO_REF="${REPO_REF:-main}"
+# Checkout and mutable state are deliberately separate: the code directory is
+# mounted read-only by the service unit.
+APP="${APP:-/var/repositories/stonkfly-fork}"
 PREFIX="${PREFIX:-/opt/stonkfly}"
 SERVICE_USER="${SERVICE_USER:-stonkfly}"
 PRODUCTS="${PRODUCTS:-BTC-USDC}"
 ADD_SWAP="${ADD_SWAP:-auto}"   # auto | yes | no
 
-APP="$PREFIX/app"
 VENV="$PREFIX/venv"
 DATA="$PREFIX/data"
 RUNS="$PREFIX/runs"
@@ -23,6 +25,23 @@ RUNS="$PREFIX/runs"
 log() { printf '\n== %s\n' "$*"; }
 
 [ "$(id -u)" -eq 0 ] || { echo "Run as root (sudo)." >&2; exit 1; }
+
+# This script updates $APP in place. Bash reads a script incrementally, so
+# rewriting the file while it runs would corrupt execution: when invoked from
+# inside the checkout, continue from a copy instead.
+if [ -n "${STONKFLY_SELF_COPY:-}" ]; then
+  trap 'rm -f "$STONKFLY_SELF_COPY"' EXIT
+else
+  SELF="$(readlink -f "$0")"
+  case "$SELF" in
+    "$APP"/*)
+      copy="$(mktemp /tmp/stonkfly-install.XXXXXX)"
+      cat "$SELF" > "$copy"
+      export STONKFLY_SELF_COPY="$copy"
+      exec bash "$copy" "$@"
+      ;;
+  esac
+fi
 
 log "Installing system packages"
 export DEBIAN_FRONTEND=noninteractive
@@ -55,16 +74,22 @@ if [ "$ADD_SWAP" = yes ] || { [ "$ADD_SWAP" = auto ] && [ "$ram_mb" -lt 12000 ] 
   fi
 fi
 
-log "Creating $SERVICE_USER and $PREFIX"
+log "Creating $SERVICE_USER, $PREFIX and $APP"
 id -u "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --create-home --home-dir "$PREFIX" --shell /usr/sbin/nologin "$SERVICE_USER"
-mkdir -p "$PREFIX" "$DATA" "$RUNS"
+mkdir -p "$PREFIX" "$DATA" "$RUNS" "$(dirname "$APP")"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$PREFIX"
+# Later steps drop to $SERVICE_USER, which may not be able to reach root's
+# current directory; work from one it owns.
+cd "$PREFIX"
 
-log "Fetching $REPO_URL ($REPO_REF)"
+log "Fetching $REPO_URL ($REPO_REF) into $APP"
 if [ -d "$APP/.git" ]; then
+  # A bootstrap clone is usually made by root; hand it to the service user.
+  chown -R "$SERVICE_USER:$SERVICE_USER" "$APP"
   sudo -u "$SERVICE_USER" git -C "$APP" fetch --depth 1 origin "$REPO_REF"
   sudo -u "$SERVICE_USER" git -C "$APP" checkout -f FETCH_HEAD
 else
+  [ -e "$APP" ] && { echo "$APP exists and is not a git checkout." >&2; exit 1; }
   sudo -u "$SERVICE_USER" git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$APP"
 fi
 
@@ -83,7 +108,8 @@ sudo -u "$SERVICE_USER" env STONKFLY_DATA="$DATA" OPENBLAS_NUM_THREADS=1 \
   "$VENV/bin/python" -m stonkfly run --fixture --fast --steps 3 --out "$RUNS/smoke"
 
 log "Installing the systemd unit"
-sed -e "s#/opt/stonkfly#$PREFIX#g" \
+sed -e "s#/var/repositories/stonkfly-fork#$APP#g" \
+    -e "s#/opt/stonkfly#$PREFIX#g" \
     -e "s#^User=stonkfly#User=$SERVICE_USER#" \
     -e "s#^Group=stonkfly#Group=$SERVICE_USER#" \
     -e "s#--products BTC-USDC#--products $PRODUCTS#" \

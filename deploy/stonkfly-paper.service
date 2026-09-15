@@ -10,7 +10,7 @@ Wants=network-online.target
 Type=simple
 User=stonkfly
 Group=stonkfly
-WorkingDirectory=/opt/stonkfly/app
+WorkingDirectory=/var/repositories/stonkfly-fork
 Environment=STONKFLY_DATA=/opt/stonkfly/data
 Environment=OPENBLAS_NUM_THREADS=1
 Environment=PYTHONUNBUFFERED=1
@@ -29,6 +29,8 @@ ProtectHome=yes
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictSUIDSGID=yes
+# Only mutable state is writable; the checkout in /var/repositories stays
+# read-only to this service.
 ReadWritePaths=/opt/stonkfly
 
 [Install]

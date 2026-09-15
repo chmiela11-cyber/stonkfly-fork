@@ -24,19 +24,39 @@ On a fresh server, as root:
 
 ```sh
 apt-get update && apt-get install -y git
-git clone https://github.com/chmiela11-cyber/stonkfly-fork /opt/stonkfly-src
-bash /opt/stonkfly-src/deploy/install.sh
+mkdir -p /var/repositories
+git clone https://github.com/chmiela11-cyber/stonkfly-fork /var/repositories/stonkfly-fork
+bash /var/repositories/stonkfly-fork/deploy/install.sh
 ```
 
 The script installs build tooling and Python, adds swap when RAM is tight,
-creates a `stonkfly` system user under `/opt/stonkfly`, builds a virtualenv,
-downloads and checksum-verifies MaleCNS v1.0, runs three offline fixture ticks
-as a smoke test, and installs a systemd unit. Expect 15-40 minutes, mostly
-download and graph import. It is idempotent: re-running it updates the checkout
-and skips completed steps.
+creates a `stonkfly` system user, builds a virtualenv, downloads and
+checksum-verifies MaleCNS v1.0, runs three offline fixture ticks as a smoke
+test, and installs a systemd unit. Expect 15-40 minutes, mostly download and
+graph import. It is idempotent: re-running it updates the checkout and skips
+completed steps. Because it rewrites the checkout it is started from, it
+continues from a temporary copy of itself.
 
-Useful overrides: `REPO_REF` (branch or tag), `PREFIX`, `SERVICE_USER`,
-`PRODUCTS` (`"BTC-USDC ETH-USDC"`), `ADD_SWAP=yes|no`.
+Code and mutable state live apart:
+
+| Path | Holds | Writable by the service |
+| --- | --- | --- |
+| `/var/repositories/stonkfly-fork` | the git checkout | no |
+| `/opt/stonkfly/venv` | virtualenv | no |
+| `/opt/stonkfly/data` | MaleCNS arrays, compiled neural kernel | yes |
+| `/opt/stonkfly/runs/paper` | ledger, checkpoints, logs | yes |
+
+The unit runs under `ProtectSystem=strict` with `/opt/stonkfly` as the only
+writable path, so a run cannot modify its own source.
+
+Useful overrides: `REPO_REF` (branch or tag), `APP` (checkout path), `PREFIX`
+(state path), `SERVICE_USER`, `PRODUCTS` (`"BTC-USDC ETH-USDC"`),
+`ADD_SWAP=yes|no`.
+
+To update later, pull and re-run the installer, then `systemctl restart
+stonkfly-paper`. Note that changing tracked source files changes the run's
+provenance hash: an existing run directory refuses to resume, by design. Use a
+fresh `--out` directory after a code change.
 
 ## Run
 

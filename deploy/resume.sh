@@ -40,6 +40,25 @@ else
   echo "No error.json; the run may have stopped cleanly."
 fi
 
+# Clearing the halt returns from preflight before the provenance check, so a
+# source or protocol mismatch halts again on the very next start. A separate run
+# directory is the fix, not resuming this one.
+if [ -f "$OUT/error.json" ] && grep -q "Run source/protocol changed" "$OUT/error.json"; then
+  cat <<MSG
+
+This run stopped because the code or settings changed under it. Resuming cannot
+help: the check runs again at every start and this directory still carries the
+old provenance.
+
+Start a separate measurement instead, which leaves this one intact:
+  bash deploy/update.sh --run <name>
+
+Or let the updater pick the name:
+  bash deploy/update.sh
+MSG
+  exit 1
+fi
+
 if [ -f "$OUT/STOP" ]; then
   cat <<MSG
 

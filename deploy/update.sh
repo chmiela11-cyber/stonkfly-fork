@@ -99,10 +99,12 @@ if [ "$VERIFY" = yes ]; then
     "$VENV/bin/python" -m stonkfly verify
 fi
 
-# A run directory only resumes when the stored settings signature still matches.
+# A run resumes only while its settings signature and its hash of tracked
+# sources both still match, and only while it is not halted. A halted directory
+# halts again on the next start, so reusing one is never the right default.
 if [ -z "$RUN" ]; then
-  verdict="$(sudo -u "$SERVICE_USER" env PYTHONPATH="$APP" "$VENV/bin/python" - \
-      "$RUNS/$current/ledger.sqlite" "$PRODUCTS" <<'PY'
+  state="$(sudo -u "$SERVICE_USER" env PYTHONPATH="$APP" "$VENV/bin/python" - \
+      "$RUNS/$current/ledger.sqlite" "$PRODUCTS" <<'PYSTATE'
 import json, sqlite3, sys
 from pathlib import Path
 from stonkfly.config import Settings
@@ -110,23 +112,60 @@ from stonkfly.config import Settings
 db = Path(sys.argv[1])
 if not db.exists():
     print("fresh")
+    print("")
     raise SystemExit
 try:
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     stored = {k: json.loads(v) for k, v in con.execute("SELECT key,value FROM meta")}
 except Exception:
     print("unreadable")
+    print("")
     raise SystemExit
 wanted = Settings(products=tuple(sys.argv[2].split())).signature()
 print("compatible" if stored.get("settings") == wanted else "incompatible")
-PY
+print(stored.get("halted") or "")
+PYSTATE
 )"
-  if [ "$code_changed" = no ] && [ "$verdict" != incompatible ]; then
-    RUN="$current"
-  else
-    RUN="${current%%-*}-$commit"
+  verdict="$(printf '%s\n' "$state" | sed -n 1p)"
+  halted="$(printf '%s\n' "$state" | sed -n 2p)"
+
+  case "$halted" in
+    *"Loss stop"*|*"fee exceeded"*)
+      cat >&2 <<MSG
+
+$RUNS/$current stopped on a financial limit:
+  $halted
+
+That is not something an update should step around. Review the account and the
+ledger first. To start a separate measurement anyway, name it yourself:
+  bash deploy/update.sh --run <name>
+MSG
+      exit 1 ;;
+  esac
+
+  reason=""
+  if [ -n "$halted" ]; then
+    reason="halted ($halted)"
+  elif [ "$code_changed" = yes ]; then
+    reason="tracked sources changed"
+  elif [ "$verdict" = incompatible ]; then
+    reason="settings changed"
   fi
-  log "Settings: $verdict. Tracked sources changed: $code_changed. Run: '$RUN'"
+
+  if [ -z "$reason" ]; then
+    RUN="$current"
+    log "Settings compatible, sources unchanged, run healthy. Keeping '$RUN'"
+  else
+    # Never land on a directory that is itself halted or already in use.
+    base="${current%%-*}-$commit"
+    RUN="$base"
+    n=2
+    while [ -e "$RUNS/$RUN/ledger.sqlite" ]; do
+      RUN="$base-$n"
+      n=$((n + 1))
+    done
+    log "Rotating because the previous run is $reason. New run: '$RUN'"
+  fi
 fi
 
 log "Installing the unit and pointing it at '$RUN'"
@@ -148,10 +187,11 @@ systemctl --no-pager --lines=0 status "$UNIT" || true
 cat <<MSG
 
 Run directory : $RUNS/$RUN
-Previous run  : $RUNS/$current (left intact for comparison)
+Previous run  : $RUNS/$current (left intact)
 
 Follow it:
-  journalctl -u $UNIT -f
+  bash deploy/inspect.sh
+  bash deploy/inspect.sh --follow
 
 Expect roughly one observation every 65 s, no "Order cooldown" vetoes on
 consecutive proposals, and "stimulus": "none" far more often than before: a

@@ -45,10 +45,10 @@ class Settings:
     pulse_ms: float = 200
     pulse_current: float = 20
     # Must exceed the fee one paper order books, so that executing a trade
-    # cannot by itself cross the threshold and stimulate an aversive pulse. The
-    # default also clears the live preview ceiling (order_limit * fee_reserve),
-    # which is what a live run pays in the worst case.
-    reward_deadband: str = "0.25"
+    # cannot by itself cross the threshold and stimulate an aversive pulse.
+    # This default sits above that floor but below the live preview ceiling,
+    # so a live run has to raise it; see live_fee_safe.
+    reward_deadband: str = "0.10"
     decoder_threshold_hz: float = 2
     paper_fee: str = "0.006"
     learning: bool = True
@@ -117,6 +117,12 @@ class Settings:
             for x in [self.neural_ms, self.neural_bin_ms, self.pulse_ms]
         ):
             raise ValueError("Neural intervals must be multiples of 0.1 ms")
+
+    def live_fee_safe(self):
+        """A live fee can reach the preview ceiling, unlike the fixed paper fee.
+        Below that, one order's fee can schedule a pulse on its own again.
+        """
+        return D(self.reward_deadband) > D(self.order_limit) * D(self.fee_reserve)
 
     def signature(self):
         return hashlib.sha256(

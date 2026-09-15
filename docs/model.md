@@ -40,11 +40,13 @@ The guard can reject a proposal for price, budget, inventory, timing or account-
 
 ## What changes with profit and loss
 
-At the next observation, equity is cash plus holdings marked at the current bid. Its change since the last observation includes booked fees and unrealized price changes. A change of at least +0.25 USDC schedules a **200 ms, 20 mV-equivalent** artificial current into all **15 PAM11 (α1)** cells. A change of at most −0.25 USDC schedules the same pulse into the **two PPL101 (γ1pedc)** cells. The pulse is binary above the threshold, not proportional to profit. The deadband is per observation; tiny changes are not accumulated into a later pulse.
+At the next observation, equity is cash plus holdings marked at the current bid. Its change since the last observation includes booked fees and unrealized price changes. A change of at least +0.10 USDC schedules a **200 ms, 20 mV-equivalent** artificial current into all **15 PAM11 (α1)** cells. A change of at most −0.10 USDC schedules the same pulse into the **two PPL101 (γ1pedc)** cells. The pulse is binary above the threshold, not proportional to profit. The deadband is per observation; tiny changes are not accumulated into a later pulse.
 
 The deadband must exceed the fee one order books (order limit times paper fee, 0.06 USDC at the defaults). Below that, executing a trade crosses the threshold on its own: every fill schedules an aversive pulse whatever the price then does, and the signal reports the cost of trading rather than the direction of the move. Fees still enter the change and still bias it downward; they no longer determine the stimulus by themselves.
 
-The 0.25 USDC default also clears the live preview ceiling of 0.20 USDC, so it holds for live fees at their worst case. It is deliberately conservative: against a 10 USDC position, per-observation changes are typically well inside it and schedule no pulse at all. A paper experiment that wants a denser signal can lower the deadband toward the floor, at the cost of letting a fill approach the threshold on fees alone.
+A paper fee is fixed at 0.006 of notional, but a live fee is only bounded by the preview ceiling of `order_limit * fee_reserve`, 0.20 USDC at the defaults. The 0.10 USDC default therefore holds for paper and not for live: a live run with it would again let one order's fee cross the threshold unaided. `Settings.live_fee_safe` reports this and `run --live` refuses to start below the ceiling, so a live run has to choose a higher deadband deliberately.
+
+The value is a compromise. At 0.25 a seventeen-observation paper run scheduled no pulse at all, with per-observation changes between 0.0003 and 0.0196 USDC against a position under 40 USDC; the signal was silent rather than selective. At 0.10 a fill still cannot cross the threshold on its own, while an ordinary price move against a grown position can.
 
 This is feedback about portfolio value, not evidence that the latest action caused that change. Holding an asset can produce either signal. Fees count as a loss. Deposits or unexplained balance changes halt execution instead of becoming rewards. Positive P&L need not be realized profit.
 

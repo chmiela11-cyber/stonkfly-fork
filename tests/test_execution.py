@@ -120,6 +120,13 @@ def test_agentkit_paper_accounting_and_cooldown(env):
         a.invoke({"product": "BTC-USDC", "side": "BUY", "size": 99})
 
 
+def test_live_needs_a_deadband_above_the_preview_fee_ceiling():
+    # Paper books a fixed fee; a live fee can reach order_limit * fee_reserve.
+    assert not Settings().live_fee_safe()
+    assert not Settings(reward_deadband="0.2").live_fee_safe()
+    assert Settings(reward_deadband="0.21").live_fee_safe()
+
+
 def test_observation_interval_clears_the_cooldown(env):
     s, l, g = env
     # An attempt lands after a variable neural integration, so consecutive

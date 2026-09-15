@@ -104,6 +104,11 @@ def main():
         neural_ms=a.neural_ms,
         pulse_ms=min(200, a.neural_ms),
     )
+    if a.live and not settings.live_fee_safe():
+        p.error(
+            "Live fees can reach the preview ceiling; raise reward_deadband above "
+            "order_limit * fee_reserve before trading real funds"
+        )
     out = a.out or Path("runs/live" if a.live else "runs/paper")
     out.mkdir(parents=True, exist_ok=True)
     lock = (out / "worker.lock").open("a")

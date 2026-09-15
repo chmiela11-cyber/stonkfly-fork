@@ -121,10 +121,25 @@ the controller trades profitably. See [model.md](model.md) and
 
 ## When it stops on its own
 
-An error halts the ledger and writes `runs/paper/error.json`; the unit exits
-cleanly rather than restarting into the same failure. Read that file, then
-recover as described in [operations.md](operations.md). A drawdown or fee stop
-cannot be cleared with `--resume-reviewed`.
+An error halts the ledger and writes `error.json` into the run directory; the
+unit exits cleanly rather than restarting into the same failure. `inspect.sh`
+prints the reason and the code locations at the top of its summary.
+
+`snapshot()` re-checks tradeability at every observation and refuses anything it
+cannot execute against immediately, so a momentary exchange condition stops the
+worker: an empty top of book, or a product reported as `limit_only`,
+`cancel_only` or in auction. These are recoverable. A checksum, accounting or
+reconciliation failure is not, and resuming will only stop again.
+
+```sh
+bash deploy/resume.sh          # show the error and what resuming would do
+bash deploy/resume.sh --yes    # clear the halt and start the worker
+```
+
+Clearing the halt runs a read-only preflight and submits no order. A drawdown or
+fee-overrun stop, and a halt with an unresolved order behind it, are refused by
+the program itself, as described in [operations.md](operations.md). A STOP file
+is a deliberate stop and is never removed for you.
 
 ## Going live is separate
 

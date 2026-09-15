@@ -39,9 +39,12 @@ PY="$PREFIX/venv/bin/python"
 [ -x "$PY" ] || PY="$(command -v python3)"
 
 "$PY" - "$OUT" "${TICK:-}" <<'PYCODE'
-import json, sqlite3, sys
+import json, signal, sqlite3, sys
 from decimal import Decimal
 from pathlib import Path
+
+# Die quietly when piped into head, the way ordinary tools do.
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 out, want = Path(sys.argv[1]), sys.argv[2]
 events = [json.loads(line) for line in (out / "events.jsonl").read_text().splitlines()] \
@@ -71,7 +74,11 @@ if db.exists():
 if (out / "STOP").exists():
     print("STOP file     present (no new decisions)")
 if (out / "error.json").exists():
-    print(f"error.json    {json.loads((out / 'error.json').read_text())['type']}")
+    err = json.loads((out / "error.json").read_text())
+    print(f"\nSTOPPED       {err['type']}: {err['reason']}")
+    for where in err.get("locations", [])[-4:]:
+        print(f"              at {where}")
+    print("              review this, then: bash deploy/resume.sh")
 
 if not events:
     print("\nNo observations recorded yet.")

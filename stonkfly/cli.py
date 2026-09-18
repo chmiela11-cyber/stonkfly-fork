@@ -14,6 +14,16 @@ from pathlib import Path
 from .config import D, Settings
 
 
+def wait_slice(until, now):
+    """Seconds to sleep next, capped at one second for a responsive STOP file.
+
+    The caller's loop guard and this call read the clock separately, with a
+    filesystem check between them, so `now` can already be past `until`.
+    time.sleep rejects a negative duration.
+    """
+    return max(0.0, min(1.0, until - now))
+
+
 def main():
     p = argparse.ArgumentParser(prog="stonkfly")
     sub = p.add_subparsers(dest="command", required=True)
@@ -281,7 +291,7 @@ def main():
             if not a.fast and (not a.steps or count < a.steps):
                 until = started + settings.interval_seconds
                 while time.monotonic() < until and not (out / "STOP").exists():
-                    time.sleep(min(1, until - time.monotonic()))
+                    time.sleep(wait_slice(until, time.monotonic()))
     except KeyboardInterrupt:
         print("Stopped; run state preserved.", flush=True)
     except Exception as e:

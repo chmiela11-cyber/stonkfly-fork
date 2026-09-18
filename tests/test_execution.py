@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from stonkfly.actions import StonkflyActions
 from stonkfly.broker import CoinbaseBroker, PaperBroker, UnresolvedOrder
+from stonkfly.cli import wait_slice
 from stonkfly.config import D, Settings
 from stonkfly.ledger import Ledger
 from stonkfly.market import Quote
@@ -118,6 +119,21 @@ def test_agentkit_paper_accounting_and_cooldown(env):
         a.invoke({"product": "BTC-USDC", "side": "BUY"})
     with pytest.raises(ValidationError):
         a.invoke({"product": "BTC-USDC", "side": "BUY", "size": 99})
+
+
+@pytest.mark.parametrize(
+    "until,now,expected",
+    [
+        (10.0, 9.5, 0.5),
+        (10.0, 0.0, 1.0),
+        (10.0, 10.0, 0.0),
+        # The clock can pass the deadline between the loop guard and the sleep.
+        (10.0, 10.000001, 0.0),
+        (10.0, 99.0, 0.0),
+    ],
+)
+def test_wait_slice_is_never_negative(until, now, expected):
+    assert wait_slice(until, now) == expected
 
 
 def test_live_needs_a_deadband_above_the_preview_fee_ceiling():
